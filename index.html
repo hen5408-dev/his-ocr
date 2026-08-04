@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>AI病歷辨識</title>
+<style>
+  :root {
+    --accent: #1f7a62;
+    --accent-dark: #17211f;
+    --danger: #b00000;
+    --danger-text: #9b1c1c;
+    --border: #d6ddd9;
+    --bg-soft: #f7faf8;
+    --text-muted: #66736f;
+    --alert-bg: #fff8f4;
+    --alert-border: #f2d2c2;
+    --alert-strong: #a14018;
+    --alert-text: #543425;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: "PingFang TC", "Microsoft JhengHei", system-ui, -apple-system, sans-serif;
+    background: #eef2ef;
+    color: var(--accent-dark);
+  }
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 20px 16px 48px;
+  }
+  header {
+    margin-bottom: 18px;
+  }
+  header h1 {
+    font-size: 22px;
+    margin: 0 0 6px;
+  }
+  header p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+  }
+  .upload-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .file-btn {
+    flex: 1;
+    min-height: 84px;
+    border: 2px dashed #cbd5d0;
+    border-radius: 10px;
+    background: var(--bg-soft);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    color: var(--accent);
+    font-weight: 800;
+    font-size: 15px;
+    position: relative;
+  }
+  .file-btn input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  #preview {
+    display: block;
+    width: 100%;
+    max-height: 260px;
+    object-fit: contain;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 14px;
+    background: #fafafa;
+  }
+  #preview[hidden] { display: none; }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  button.primary, button.secondary, button.ghost {
+    min-height: 46px;
+    border: 0;
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-weight: 800;
+    font-size: 15px;
+    cursor: pointer;
+    flex: 1;
+    min-width: 130px;
+  }
+  button.primary { background: var(--accent); color: #fff; }
+  button.secondary { background: var(--danger); color: #fff; }
+  button.ghost { background: #eef2ef; color: var(--accent-dark); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  label.field-label {
+    display: block;
+    margin: 4px 0 6px;
+    font-size: 13px;
+    font-weight: 800;
+  }
+  textarea#result {
+    width: 100%;
+    min-height: 220px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    font: inherit;
+    line-height: 1.65;
+    resize: vertical;
+  }
+  .alerts {
+    background: var(--alert-bg);
+    border: 1px solid var(--alert-border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-top: 14px;
+  }
+  .alerts strong {
+    display: block;
+    color: var(--alert-strong);
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .alerts ol {
+    margin: 0;
+    padding-left: 20px;
+    line-height: 1.6;
+    color: var(--alert-text);
+    font-size: 14px;
+  }
+  #status {
+    min-height: 22px;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 10px;
+  }
+  #status.danger { color: var(--danger-text); font-weight: 800; }
+  #status.ok { color: var(--accent); font-weight: 700; }
+
+  .step-hint {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 10px;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>AI病歷辨識</h1>
+    <p>拍照或上傳醫師手寫病歷，辨識後可先修改，再複製貼到 HIS 病情紀錄欄位。</p>
+  </header>
+
+  <div class="card">
+    <div class="upload-row">
+      <label class="file-btn">
+        <input id="camera" type="file" accept="image/png,image/jpeg,image/webp" capture="environment">
+        <span>拍照</span>
+      </label>
+      <label class="file-btn">
+        <input id="filepick" type="file" accept="image/png,image/jpeg,image/webp">
+        <span>上傳照片</span>
+      </label>
+    </div>
+
+    <img id="preview" alt="上傳預覽" hidden>
+
+    <div class="actions">
+      <button type="button" class="primary" id="runBtn">開始辨識</button>
+      <button type="button" class="secondary" id="clearBtn">清除重來</button>
+    </div>
+
+    <p id="status"></p>
+  </div>
+
+  <div class="card">
+    <label class="field-label" for="result">辨識後內容，可先人工修改</label>
+    <textarea id="result" placeholder="辨識結果會顯示在這裡。可先修改內容，再複製貼到 HIS 病情紀錄空白欄。"></textarea>
+
+    <div class="actions" style="margin-top:12px;">
+      <button type="button" class="ghost" id="copyBtn">複製辨識結果</button>
+    </div>
+
+    <div class="step-hint">
+      複製後，請切到 HIS 分頁（建議用 iPad 的 Split View 同時開兩個頁面），點一下病情紀錄空白欄，長按選「貼上」。
+    </div>
+
+    <div class="alerts">
+      <strong>額外數值規則提醒</strong>
+      <ol id="ruleAlerts"></ol>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const WEBHOOK_URL = "https://aiwisebalancegroup.com/webhook/his-ocr";
+
+  let imageDataUrl = "";
+  let labRanges = []; // 由 n8n 回應動態提供，不再內建於前端
+
+  const $ = (id) => document.getElementById(id);
+  const cameraInput = $("camera");
+  const fileInput = $("filepick");
+  const preview = $("preview");
+  const runBtn = $("runBtn");
+  const clearBtn = $("clearBtn");
+  const copyBtn = $("copyBtn");
+  const resultEl = $("result");
+  const statusEl = $("status");
+  const alertsEl = $("ruleAlerts");
+
+  function setStatus(text, kind) {
+    // kind: "danger" | "ok" | undefined
+    statusEl.textContent = text;
+    statusEl.className = kind || "";
+  }
+
+  function escapeRegExp(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function renderAlerts() {
+    alertsEl.innerHTML = "";
+    const text = resultEl.value;
+    const found = [];
+    const seen = new Set();
+
+    for (const r of labRanges) {
+      if (r.low == null && r.high == null) continue;
+      const name = r.name || "";
+      if (!name) continue;
+      const re = new RegExp(`(${escapeRegExp(name)})\\s*[:：=]?\\s*(-?\\d+(?:\\.\\d+)?)\\s*%?`, "gi");
+      let m;
+      while ((m = re.exec(text)) !== null) {
+        const label = m[1];
+        const value = Number(m[2]);
+        if (!Number.isFinite(value)) continue;
+        const key = `${label.toLowerCase()}-${value}-${m.index}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if ((r.low != null && value < r.low) || (r.high != null && value > r.high)) {
+          found.push(`${label}：${value}${r.unit ? " " + r.unit : ""}｜超出常見成人參考範圍，請人工確認`);
+        }
+      }
+    }
+
+    // 血壓判斷（目前固定於前端，未來如需可移到 Google Sheet 管理）
+    const bpRe = /\b(?:BP|血壓)\s*[:：=]?\s*(\d{2,3})\s*\/\s*(\d{2,3})\b/gi;
+    let bpMatch;
+    while ((bpMatch = bpRe.exec(text)) !== null) {
+      const sys = Number(bpMatch[1]);
+      const dia = Number(bpMatch[2]);
+      if (sys > 140 || dia > 90 || sys < 90 || dia < 60) {
+        found.push(`BP：${sys}/${dia}｜超出常見成人參考範圍，請人工確認`);
+      }
+    }
+
+    const unique = [...new Set(found)];
+    if (!unique.length) {
+      const li = document.createElement("li");
+      li.textContent = "尚無額外規則提醒";
+      alertsEl.appendChild(li);
+      return;
+    }
+    for (const line of unique) {
+      const li = document.createElement("li");
+      li.textContent = line;
+      alertsEl.appendChild(li);
+    }
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleFile(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    imageDataUrl = await readFileAsDataUrl(file);
+    preview.src = imageDataUrl;
+    preview.hidden = false;
+    setStatus("圖片已載入，可以開始辨識。");
+  }
+
+  function extractDisplayText(payload) {
+    if (typeof payload === "string") return payload;
+    if (payload && typeof payload.result === "string") return payload.result;
+    if (payload && typeof payload.text === "string") return payload.text;
+    if (payload && typeof payload.output === "string") return payload.output;
+    if (payload && typeof payload.message === "string") return payload.message;
+    return JSON.stringify(payload, null, 2);
+  }
+
+  async function runOcr() {
+    if (!imageDataUrl) {
+      setStatus("請先拍照或上傳照片。", "danger");
+      return;
+    }
+    runBtn.disabled = true;
+    resultEl.value = "";
+    renderAlerts();
+    setStatus("辨識中，請稍候。");
+
+    try {
+      const response = await fetch(WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageDataUrl })
+      });
+
+      const raw = await response.text();
+      let payload;
+      try {
+        payload = JSON.parse(raw);
+      } catch (e) {
+        payload = raw;
+      }
+
+      if (payload && typeof payload === "object" && Array.isArray(payload.labRanges)) {
+        labRanges = payload.labRanges;
+      }
+
+      resultEl.value = extractDisplayText(payload);
+      renderAlerts();
+      setStatus("辨識完成。請先確認或修改內容，再複製貼到病情紀錄欄位。", "ok");
+    } catch (err) {
+      setStatus((err && err.message) || "辨識失敗，請確認網路連線。", "danger");
+    } finally {
+      runBtn.disabled = false;
+    }
+  }
+
+  function clearAll() {
+    imageDataUrl = "";
+    preview.src = "";
+    preview.hidden = true;
+    resultEl.value = "";
+    cameraInput.value = "";
+    fileInput.value = "";
+    renderAlerts();
+    setStatus("已清除，請重新拍照或上傳。");
+  }
+
+  async function copyResult() {
+    const text = resultEl.value.trim();
+    if (!text) {
+      setStatus("目前沒有可複製的內容。", "danger");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setStatus("已複製，請切到 HIS 頁面貼上。", "ok");
+    } catch (err) {
+      // 部分環境（非 https 或使用者未授權）clipboard API 可能失敗，退回選取文字讓使用者手動複製
+      resultEl.focus();
+      resultEl.select();
+      setStatus("無法自動複製，已為你選取文字，請手動複製（長按→複製）。", "danger");
+    }
+  }
+
+  cameraInput.addEventListener("change", () => handleFile(cameraInput));
+  fileInput.addEventListener("change", () => handleFile(fileInput));
+  resultEl.addEventListener("input", renderAlerts);
+  runBtn.addEventListener("click", runOcr);
+  clearBtn.addEventListener("click", clearAll);
+  copyBtn.addEventListener("click", copyResult);
+
+  renderAlerts();
+})();
+</script>
+</body>
+</html>
