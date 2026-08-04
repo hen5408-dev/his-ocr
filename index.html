@@ -208,6 +208,18 @@
       <ol id="ruleAlerts"></ol>
     </div>
   </div>
+
+  <div class="card">
+    <label class="field-label">進階診斷（除錯用，之後可移除）</label>
+    <div class="actions">
+      <button type="button" class="ghost" id="testExternal">測試1：外部網站連線</button>
+      <button type="button" class="ghost" id="testRoot">測試2：n8n 根網域連線</button>
+      <button type="button" class="ghost" id="testWebhook">測試3：webhook 實際連線</button>
+    </div>
+    <div class="step-hint">
+      依序按 1→2→3，每個都會跳出詳細結果。把三個結果都截圖告訴我。
+    </div>
+  </div>
 </div>
 
 <script>
@@ -381,6 +393,53 @@
       setStatus("無法自動複製，已為你選取文字，請手動複製（長按→複製）。", "danger");
     }
   }
+
+  function describeError(err) {
+    const parts = [];
+    parts.push("name: " + (err && err.name));
+    parts.push("message: " + (err && err.message));
+    if (err && err.stack) parts.push("stack(前2行): " + String(err.stack).split("\n").slice(0,2).join(" | "));
+    return parts.join("\n");
+  }
+
+  async function testExternal() {
+    alert("測試1開始：呼叫 https://api.github.com");
+    try {
+      const r = await fetch("https://api.github.com", { method: "GET" });
+      alert("測試1成功：狀態碼 " + r.status + "\n（代表這台 iPad 在目前網路下，fetch 對外部網站是通的）");
+    } catch (err) {
+      alert("測試1失敗（連外部知名網站都失敗）：\n" + describeError(err) + "\n\n這代表問題可能不是 aiwisebalancegroup.com 專屬的，而是這台 iPad/瀏覽器整體的 fetch 有更基本的限制。");
+    }
+  }
+
+  async function testRoot() {
+    alert("測試2開始：呼叫 https://aiwisebalancegroup.com（根網域，GET）");
+    try {
+      const r = await fetch("https://aiwisebalancegroup.com", { method: "GET", mode: "cors" });
+      alert("測試2成功：狀態碼 " + r.status);
+    } catch (err) {
+      alert("測試2失敗：\n" + describeError(err) + "\n\n如果測試1成功、測試2失敗，代表問題很可能出在這個網域的 SSL 憑證或伺服器設定，這台 iPad 可能不信任這個網域的憑證。");
+    }
+  }
+
+  async function testWebhook() {
+    alert("測試3開始：呼叫實際 webhook（POST，小測試資料）");
+    try {
+      const r = await fetch(WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageDataUrl: "diagnostic-test" })
+      });
+      const text = await r.text();
+      alert("測試3成功：狀態碼 " + r.status + "\n回應前100字：\n" + text.slice(0, 100));
+    } catch (err) {
+      alert("測試3失敗：\n" + describeError(err));
+    }
+  }
+
+  $("testExternal").addEventListener("click", testExternal);
+  $("testRoot").addEventListener("click", testRoot);
+  $("testWebhook").addEventListener("click", testWebhook);
 
   cameraInput.addEventListener("change", () => handleFile(cameraInput));
   fileInput.addEventListener("change", () => handleFile(fileInput));
