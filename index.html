@@ -455,7 +455,7 @@
     const rawDataUrl = await readFileAsDataUrl(file);
     const rawSize = estimateBytesFromDataUrl(rawDataUrl);
     try {
-      imageDataUrl = await compressImage(rawDataUrl, 1600, 0.8);
+      imageDataUrl = await compressImage(rawDataUrl, 2200, 0.9);
     } catch (e) {
       imageDataUrl = rawDataUrl; // 壓縮失敗就退回原圖，至少還能送出
     }
